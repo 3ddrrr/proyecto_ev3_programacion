@@ -1,6 +1,6 @@
-2026-06-22 12:57:17,773 [INFO] 🚀 Iniciando Fase de Extracción de Fuentes Secundarias...
-2026-06-22 12:57:17,773 [INFO] 🌐 Conectando a la API REST: https://jsonplaceholder.typicode.com/users
-2026-06-22 12:57:18,339 [INFO] ✅ Fuente 2 (API) extraída y guardada en: data\raw\medicos_api.csv
-2026-06-22 12:57:18,339 [INFO] 🗄️ Inicializando Base de Datos SQL en: data\raw\clinica_local.db
-2026-06-22 12:57:18,346 [INFO] ✅ Fuente 3 (SQL DB) creada y poblada con éxito con datos OMS.
-2026-06-22 12:57:18,346 [INFO] 🎉 Extracción complementaria finalizada exitosamente.
+2026-06-22 13:04:13,296 [INFO] Iniciando Fase de Extraccion de Fuentes Secundarias...
+2026-06-22 13:04:13,296 [INFO] Conectando a la API REST: https://jsonplaceholder.typicode.com/users
+2026-06-22 13:04:13,869 [INFO] Fuente 2 (API) extraida y guardada en: data\raw\medicos_api.csv
+2026-06-22 13:04:13,869 [INFO] Inicializando Base de Datos SQL en: data\raw\clinica_local.db
+2026-06-22 13:04:13,873 [INFO] Fuente 3 (SQL DB) creada y poblada con exito.
+2026-06-22 13:04:13,873 [INFO] Extraccion complementaria finalizada exitosamente.

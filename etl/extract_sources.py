@@ -4,7 +4,7 @@ import logging
 import requests
 import pandas as pd
 
-# Configuración del Logging Profesional (Pauta: Foco en Aspectos Formales)
+# Configuracion del Logging Profesional
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -15,17 +15,16 @@ logging.basicConfig(
 )
 
 def extraer_api_medicos():
-    """Fuente 2: Extrae datos de personal médico desde una API REST pública."""
+    """Fuente 2: Extrae datos de personal medico desde una API REST publica."""
     url_api = "https://jsonplaceholder.typicode.com/users"
-    logging.info(f"🌐 Conectando a la API REST: {url_api}")
+    logging.info(f"Conectando a la API REST: {url_api}")
     
     try:
         response = requests.get(url_api, timeout=10)
-        response.raise_for_status() # Lanza error si la respuesta no es 200 OK
+        response.raise_for_status()
         
         datos_api = response.json()
         
-        # Transformar a DataFrame los campos relevantes
         medicos = []
         for user in datos_api:
             medicos.append({
@@ -38,25 +37,24 @@ def extraer_api_medicos():
         df_medicos = pd.DataFrame(medicos)
         ruta_guardado = os.path.join("data", "raw", "medicos_api.csv")
         df_medicos.to_csv(ruta_guardado, index=False)
-        logging.info(f"✅ Fuente 2 (API) extraída y guardada en: {ruta_guardado}")
+        logging.info(f"Fuente 2 (API) extraida y guardada en: {ruta_guardado}")
         
     except requests.exceptions.RequestException as e:
-        logging.error(f"❌ Error crítico al conectar con la API REST: {e}")
+        logging.error(f"Error critico al conectar con la API REST: {e}")
         raise e
 
 def crear_base_datos_sql():
-    """Fuente 3: Crea una base de datos SQL local con el catálogo de rangos IMC."""
+    """Fuente 3: Crea una base de datos SQL local con el catalogo de rangos IMC."""
     db_dir = os.path.join("data", "raw")
     os.makedirs(db_dir, exist_ok=True)
     db_path = os.path.join(db_dir, "clinica_local.db")
     
-    logging.info(f"🗄️ Inicializando Base de Datos SQL en: {db_path}")
+    logging.info(f"Inicializando Base de Datos SQL en: {db_path}")
     
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        # Crear tabla de catálogo de IMC
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS catalogo_imc (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,7 +64,6 @@ def crear_base_datos_sql():
             )
         """)
         
-        # Insertar filas de referencia de la OMS (limpiamos antes para evitar duplicados)
         cursor.execute("DELETE FROM catalogo_imc")
         datos_imc = [
             ("Bajo Peso", 0.0, 18.49),
@@ -83,17 +80,17 @@ def crear_base_datos_sql():
         """, datos_imc)
         
         conn.commit()
-        logging.info("✅ Fuente 3 (SQL DB) creada y poblada con éxito con datos OMS.")
+        logging.info("Fuente 3 (SQL DB) creada y poblada con exito.")
         
     except sqlite3.Error as e:
-        logging.error(f"❌ Error en la base de datos SQL: {e}")
+        logging.error(f"Error en la base de datos SQL: {e}")
         raise e
     finally:
         if conn:
             conn.close()
 
 if __name__ == "__main__":
-    logging.info("🚀 Iniciando Fase de Extracción de Fuentes Secundarias...")
+    logging.info("Iniciando Fase de Extraccion de Fuentes Secundarias...")
     extraer_api_medicos()
     crear_base_datos_sql()
-    logging.info("🎉 Extracción complementaria finalizada exitosamente.")
+    logging.info("Extraccion complementaria finalizada exitosamente.")
