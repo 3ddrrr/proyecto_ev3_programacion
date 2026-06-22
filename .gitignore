@@ -1,0 +1,13 @@
+# Entornos virtuales
+venv/
+.env
+
+# Ignorar los datos pesados (No se suben a Git)
+data/raw/*
+data/processed/*
+!data/.gitkeep
+
+# Archivos de Python compilados
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
