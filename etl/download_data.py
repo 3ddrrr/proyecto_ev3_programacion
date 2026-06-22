@@ -2,31 +2,34 @@ import os
 import urllib.request
 
 def descargar_datos_nhanes():
-    # 1. Definir las URLs de los archivos XPT del CDC (NHANES 2017-2018)
+    # Definir las URLs correctas del repositorio publico de datos del CDC
     urls = {
-        "demografia": "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/DEMO_J.XPT",
-        "datos_corporales": "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/BMX_J.XPT"
+        "demografia": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.xpt",
+        "datos_corporales": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.xpt"
     }
     
-    # 2. Ruta de destino (data/raw/)
     destino_dir = os.path.join("data", "raw")
-    
-    # Asegurar que la carpeta exista, si no, crearla
     os.makedirs(destino_dir, exist_ok=True)
     
-    print("🚀 Iniciando la descarga automatizada de datos NHANES...")
+    print("Iniciando la descarga automatizada de datos NHANES...")
     
     for nombre, url in urls.items():
-        nombre_archivo = url.split("/")[-1]
+        nombre_archivo = url.split("/")[-1].upper() # Mantener la extension en mayusculas para consistencia
         ruta_completa = os.path.join(destino_dir, nombre_archivo)
         
         try:
-            print(print(f"📥 Descargando {nombre} desde {url}..."))
-            # Descarga el archivo desde la web del CDC y lo guarda localmente
-            urllib.request.urlretrieve(url, ruta_completa)
-            print(f"✅ Guardado exitosamente en: {ruta_completa}")
+            print(f"Descargando {nombre} desde {url}...")
+            # Forzar un User-Agent en la peticion para evitar bloqueos del servidor
+            req = urllib.request.Request(
+                url, 
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+            )
+            with urllib.request.urlopen(req) as response, open(ruta_completa, 'wb') as out_file:
+                out_file.write(response.read())
+                
+            print(f"Guardado exitosamente en: {ruta_completa}")
         except Exception as e:
-            print(f"❌ Error al descargar {nombre}: {e}")
+            print(f"Error al descargar {nombre}: {e}")
 
 if __name__ == "__main__":
     descargar_datos_nhanes()
