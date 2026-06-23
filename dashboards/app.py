@@ -2,7 +2,7 @@ import streamlit as str
 import requests
 import pandas as pd
 import plotly.express as px
-
+import os
 # Configuración de la página del Dashboard
 str.set_page_config(
     page_title="Cuadro de Mando Integral - NHANES",
@@ -10,8 +10,9 @@ str.set_page_config(
     layout="wide"
 )
 
-# Definición de la URL base de nuestra API interna
-URL_API = "http://127.0.0.1:8000"
+
+# Permite leer la URL desde las variables de entorno de Docker, usando local como respaldo
+URL_API = os.environ.get("API_URL", "http://127.0.0.1:8000")
 
 # Funciones auxiliares para consumir la API con manejo de errores
 def obtener_metricas_api():

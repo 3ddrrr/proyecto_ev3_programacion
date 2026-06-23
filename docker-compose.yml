@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  api:
+    container_name: nhanes_api_service
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/processed:/app/data/processed
+    restart: always
+
+  dashboard:
+    container_name: nhanes_dashboard_service
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dash
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      - api
+    restart: always
