@@ -6,3 +6,5 @@ uvicorn
 streamlit
 plotly
 numpy
+scikit-learn
+joblib
