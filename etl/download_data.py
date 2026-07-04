@@ -1,6 +1,13 @@
 import os
 import urllib.request
 
+# Definir las rutas de las carpetas de datos
+os.makedirs(os.path.join("data", "raw"), exist_ok=True)
+os.makedirs(os.path.join("data", "processed"), exist_ok=True)
+
+print("✅ Carpetas 'data/raw' y 'data/processed' verificadas/creadas con éxito.")
+
+
 def descargar_datos_nhanes():
     # Definir las URLs correctas del repositorio publico de datos del CDC
     urls = {
