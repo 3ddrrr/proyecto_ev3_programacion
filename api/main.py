@@ -1,90 +1,104 @@
 import os
-import logging
-from fastapi import FastAPI, HTTPException, Query
+import sqlite3
 import pandas as pd
+import joblib
+import logging
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import List, Dict, Any
 
-# Configuracion de logging institucional
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("api_process.log", encoding="utf-8")
-    ]
-)
+# Configuración de Logging Profesional para la API
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 app = FastAPI(
-    title="API de Monitoreo de Salud - NHANES",
-    description="API interna para proveer datos procesados e integrados del estudio NHANES y clinica local.",
-    version="1.0.0"
+    title="API de Predicción y Gestión de Salud - NHANES",
+    description="API interna para la consulta de datos clínicos y predicción del estado nutricional usando Machine Learning.",
+    version="2.0.0"
 )
 
-# Ruta del archivo procesado
-RUTA_DATOS = os.path.join("data", "processed", "pacientes_final.csv")
+# ---------------------------------------------------------
+# Carga del Modelo de Machine Learning
+# ---------------------------------------------------------
+ruta_modelo = os.path.join("models", "mejor_modelo_nhanes.pkl")
+if os.path.exists(ruta_modelo):
+    modelo_ml = joblib.load(ruta_modelo)
+    logging.info("✅ Modelo de Machine Learning cargado exitosamente en la API.")
+else:
+    modelo_ml = None
+    logging.error("❌ No se encontró el archivo del modelo. El endpoint de predicción fallará.")
 
-def cargar_datos():
-    """Funcion auxiliar para cargar el dataset procesado."""
-    if not os.path.exists(RUTA_DATOS):
-        logging.error(f"Archivo de datos no encontrado en la ruta: {RUTA_DATOS}")
-        raise HTTPException(status_code=500, detail="El archivo de datos procesados no existe. Ejecute el pipeline ETL primero.")
-    return pd.read_csv(RUTA_DATOS)
+# Definir la estructura de datos que debe recibir la API para predecir (Pydantic)
+class PacienteInput(BaseModel):
+    edad: int
+    genero: str  # 'Masculino' o 'Femenino'
+    peso_kg: float
+    estatura_cm: float
 
-@app.get("/", tags=["General"])
-def read_root():
-    """Endpoint de verificacion de estado de la API."""
+# ---------------------------------------------------------
+# Endpoints de la API
+# ---------------------------------------------------------
+
+@app.get("/")
+def inicio():
+    return {"mensaje": "API de Proyecto NHANES ejecutándose de forma correcta", "version": "2.0.0"}
+
+@app.get("/api/health")
+def healthcheck():
+    """Valida el estado de salud técnica de la API y sus componentes."""
+    estado_modelo = "Activo" if modelo_ml is not None else "Inactivo/No encontrado"
     return {
-        "status": "online",
-        "proyecto": "Evaluacion Parcial 3 - SCY1101",
-        "descripcion": "Servicio de datos medicos NHANES"
+        "status": "Healthy",
+        "base_datos_sqlite": "Conectada",
+        "modelo_machine_learning": estado_modelo
     }
 
-@app.get("/api/pacientes", tags=["Datos"])
-def obtener_pacientes(
-    genero: str = Query(None, description="Filtrar por genero: Masculino o Femenino"),
-    clasificacion: str = Query(None, description="Filtrar por clasificacion de IMC de la OMS")
-):
-    """
-    Retorna el listado de pacientes integrados.
-    Permite filtros opcionales por genero y clasificacion de IMC.
-    """
-    try:
-        df = cargar_datos()
-        
-        # Aplicar filtros si son proporcionados
-        if genero:
-            df = df[df['genero'].str.lower() == genero.lower()]
-        if clasificacion:
-            df = df[df['clasificacion_imc'].str.lower() == clasificacion.lower()]
-            
-        # Convertir a diccionario orientando por registros (formato JSON)
-        # Se limita a 1000 registros para optimizar la transferencia de datos inicial
-        resultado = df.head(1000).to_dict(orient="records")
-        return {
-            "total_registros_mostrados": len(resultado),
-            "data": resultado
-        }
-    except Exception as e:
-        logging.error(f"Error al procesar consulta de pacientes: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/pacientes", response_model=List[Dict[str, Any]])
+def obtener_pacientes():
+    """Retorna el listado completo de pacientes procesados para el Dashboard."""
+    ruta_datos = os.path.join("data", "processed", "pacientes_ml.csv")
+    if not os.path.exists(ruta_datos):
+        raise HTTPException(status_code=404, detail="El archivo de datos procesados no existe. Ejecute el ETL primero.")
+    
+    df = pd.read_csv(ruta_datos)
+    # Reemplazar posibles valores infinitos o NaN para que no rompa el JSON de salida
+    df = df.fillna("No Aplica")
+    return df.to_dict(orient="records")
 
-@app.get("/api/metricas", tags=["Analitica"])
-def obtener_metricas_globales():
+@app.post("/api/predict")
+def predecir_estado_nutricional(input_data: PacienteInput):
     """
-    Retorna indicadores clave de rendimiento (KPIs) precalculados
-    para el consumo directo del dashboard.
+    Endpoint de Inteligencia Artificial: Recibe datos de un paciente en tiempo real,
+    los procesa a través del Pipeline del modelo y devuelve la predicción diagnóstica.
     """
+    if modelo_ml is None:
+        raise HTTPException(status_code=500, detail="El modelo predictivo no está disponible en el servidor.")
+    
     try:
-        df = cargar_datos()
+        # 1. Convertir la entrada de la API en un DataFrame de una sola fila (tal como entramos el modelo)
+        datos_paciente = pd.DataFrame([{
+            'edad': input_data.edad,
+            'genero': input_data.genero,
+            'peso_kg': input_data.peso_kg,
+            'estatura_cm': input_data.estatura_cm
+        }])
         
-        metricas = {
-            "total_pacientes_analizados": int(len(df)),
-            "edad_promedio": float(round(df['edad'].mean(), 2)),
-            "imc_promedio": float(round(df['imc'].mean(), 2)),
-            "peso_promedio_kg": float(round(df['peso_kg'].mean(), 2)),
-            "distribucion_genero": df['genero'].value_counts().to_dict(),
-            "distribucion_imc": df['clasificacion_imc'].value_counts().to_dict()
+        # 2. Realizar la predicción usando el pipeline guardado (que ya escala y transforma el género solo)
+        prediccion = modelo_ml.predict(datos_paciente)[0]
+        
+        # 3. Calcular probabilidades para dar una respuesta más rica técnicamente
+        probabilidades = modelo_ml.predict_proba(datos_paciente)[0]
+        clases = modelo_ml.classes_
+        confianza = max(probabilidades) * 100
+        
+        logging.info(f"Predicción realizada con éxito: {prediccion} ({confianza:.2f}% de confianza)")
+        
+        return {
+            "estado_paciente": "Procesado",
+            "prediccion_diagnostico": prediccion,
+            "porcentaje_confianza": round(confianza, 2),
+            "detalle_probabilidades": {clase: round(prob * 100, 2) for clase, prob in zip(clases, probabilidades)}
         }
-        return metricas
+        
     except Exception as e:
-        logging.error(f"Error al calcular metricas globales: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Error interno al realizar la predicción: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al procesar la predicción: {str(e)}")

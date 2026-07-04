@@ -1,165 +1,132 @@
-import streamlit as str
+import os
+import streamlit as st
 import requests
 import pandas as pd
 import plotly.express as px
-import os
-# Configuración de la página del Dashboard
-str.set_page_config(
-    page_title="Cuadro de Mando Integral - NHANES",
-    page_icon="📊",
-    layout="wide"
-)
 
+# Configuración de la página
+st.set_page_config(page_title="Cuadro de Mando Integral - NHANES", page_icon="📊", layout="wide")
 
-# Permite leer la URL desde las variables de entorno de Docker, usando local como respaldo
+# URL de la API (Soporta Docker y Local)
 URL_API = os.environ.get("API_URL", "http://127.0.0.1:8000")
 
-# Funciones auxiliares para consumir la API con manejo de errores
+# --- FUNCIONES DE CONEXIÓN A LA API ---
 def obtener_metricas_api():
     try:
-        response = requests.get(f"{URL_API}/api/metricas", timeout=5)
+        response = requests.get(f"{URL_API}/api/pacientes", timeout=5)
+        if response.status_code == 200:
+            df = pd.DataFrame(response.json())
+            metricas = {
+                "total": len(df),
+                "edad_promedio": round(df['edad'].mean(), 1),
+                "imc_promedio": round(df['imc'].mean(), 1),
+                "distribucion_genero": df['genero'].value_counts().to_dict(),
+                "distribucion_imc": df['clasificacion_imc'].value_counts().to_dict()
+            }
+            return metricas, df
+    except:
+        return None, None
+    return None, None
+
+def predecir_estado_api(datos_paciente):
+    try:
+        response = requests.post(f"{URL_API}/api/predict", json=datos_paciente, timeout=5)
         if response.status_code == 200:
             return response.json()
-    except requests.exceptions.ConnectionError:
-        return None
+        else:
+            st.error(f"Error en el servidor: {response.text}")
+    except:
+        st.error("No se pudo conectar con el motor de Inteligencia Artificial.")
     return None
 
-def obtener_pacientes_api(genero=None, clasificacion=None):
-    params = {}
-    if genero and genero != "Todos":
-        params["genero"] = genero
-    if clasificacion and clasificacion != "Todas":
-        params["clasificacion"] = clasificacion
-        
-    try:
-        response = requests.get(f"{URL_API}/api/pacientes", params=params, timeout=5)
-        if response.status_code == 200:
-            return response.json().get("data", [])
-    except requests.exceptions.ConnectionError:
-        return []
-    return []
+# --- INTERFAZ DEL DASHBOARD ---
+st.title("Sistema Integrado de Monitoreo de Salud e IA")
+st.markdown("Plataforma analítica con integración de modelos predictivos de Machine Learning para apoyo al diagnóstico.")
 
-# Título Principal e Introducción Institucional
-str.title("Sistema Integrado de Monitoreo de Salud de la Población")
-str.markdown("""
-Esta plataforma consolida los datos analíticos del estudio nacional **NHANES**, integrados mediante un pipeline ETL automatizado 
-con catálogos clínicos de la OMS y registros del personal médico mediante APIs REST.
-""")
-
-# Consumo de datos iniciales de la API
-metricas = obtener_metricas_api()
+metricas, df_pacientes = obtener_metricas_api()
 
 if metricas is None:
-    str.error("Error de Comunicación: No se pudo conectar con la API interna. Asegúrese de que el servicio FastAPI esté ejecutándose en el puerto 8000.")
+    st.error("Error de Comunicación: Asegúrese de que la API interna (FastAPI) esté ejecutándose.")
 else:
-    # Definición de pestañas orientadas a diferentes audiencias (Requisito de Pauta)
-    tab_ejecutiva, tab_operativa, tab_tecnica = str.tabs([
-        " Vista Ejecutiva (Dirección médica)", 
-        " Vista Operativa (Gestión de Pacientes)", 
-        " Vista Técnica (Estado del Sistema)"
+    # 4 Pestañas ahora (Agregamos la de IA)
+    tab_ejecutiva, tab_operativa, tab_ia, tab_tecnica = st.tabs([
+        "📊 Vista Ejecutiva", 
+        "👥 Búsqueda de Pacientes", 
+        "🤖 Predicción con IA",
+        "⚙️ Estado del Sistema"
     ])
     
-    # ----------------------------------------------------
-    # 1. VISTA EJECUTIVA: Orientada a la toma de decisiones generales
-    # ----------------------------------------------------
+    # 1. VISTA EJECUTIVA
     with tab_ejecutiva:
-        str.header("Indicadores Clave de Rendimiento (KPIs) de Salud")
+        st.header("Indicadores Macro de Salud")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Pacientes Analizados", f"{metricas['total']:,}")
+        c2.metric("Edad Promedio", f"{metricas['edad_promedio']} años")
+        c3.metric("IMC Global Promedio", f"{metricas['imc_promedio']}")
         
-        # Fila de métricas principales
-        col1, col2, col3, col4 = str.columns(4)
-        col1.metric("Total Pacientes Evaluados", f"{metricas['total_pacientes_analizados']:,}")
-        col2.metric("Edad Promedio Poblacional", f"{metricas['edad_promedio']} años")
-        col3.metric("Índice de Masa Corporal (IMC) Promedio", f"{metricas['imc_promedio']}")
-        col4.metric("Peso Promedio General", f"{metricas['peso_promedio_kg']} kg")
-        
-        str.markdown("---")
-        
-        # Gráficos Analíticos Complejos
-        str.subheader("Análisis Epidemiológico de la Población")
-        col_graf1, col_graf2 = str.columns(2)
-        
+        st.markdown("---")
+        col_graf1, col_graf2 = st.columns(2)
         with col_graf1:
-            # Distribución del IMC según la OMS
             df_imc = pd.DataFrame(list(metricas['distribucion_imc'].items()), columns=['Clasificación', 'Total'])
-            fig_imc = px.bar(
-                df_imc, 
-                x='Clasificación', 
-                y='Total', 
-                title='Distribución de la Población según Rangos de IMC (OMS)',
-                labels={'Total': 'Cantidad de Registros'},
-                template='plotly_white'
-            )
-            str.plotly_chart(fig_imc, use_container_width=True)
-            
+            fig_imc = px.bar(df_imc, x='Clasificación', y='Total', title='Distribución Nutricional', template='plotly_white')
+            st.plotly_chart(fig_imc, use_container_width=True)
         with col_graf2:
-            # Distribución de Género
-            df_genero = pd.DataFrame(list(metricas['distribucion_genero'].items()), columns=['Género', 'Total'])
-            fig_gen = px.pie(
-                df_genero, 
-                names='Género', 
-                values='Total', 
-                title='Proporción de Participantes por Género',
-                hole=0.4,
-                template='plotly_white'
-            )
-            str.plotly_chart(fig_gen, use_container_width=True)
+            df_gen = pd.DataFrame(list(metricas['distribucion_genero'].items()), columns=['Género', 'Total'])
+            fig_gen = px.pie(df_gen, names='Género', values='Total', title='Proporción por Género', hole=0.4)
+            st.plotly_chart(fig_gen, use_container_width=True)
 
-    # ----------------------------------------------------
-    # 2. VISTA OPERATIVA: Orientada a coordinadores de la clínica y médicos
-    # ----------------------------------------------------
+    # 2. VISTA OPERATIVA
     with tab_operativa:
-        str.header("Buscador y Herramienta de Filtros Clínicos")
-        str.markdown("Filtre el padrón de pacientes en tiempo real para auditorías o asignación de tratamientos médicos.")
+        st.header("Padrón Clínico")
+        col_f1, col_f2 = st.columns(2)
+        filtro_genero = col_f1.selectbox("Género:", ["Todos", "Masculino", "Femenino"])
+        filtro_imc = col_f2.selectbox("Diagnóstico:", ["Todos"] + list(metricas['distribucion_imc'].keys()))
         
-        # Filtros interactivos vinculados a parámetros de la API
-        col_f1, col_f2 = str.columns(2)
-        with col_f1:
-            filtro_genero = str.selectbox("Seleccionar Género:", ["Todos", "Masculino", "Femenino"])
-        with col_f2:
-            opciones_imc = ["Todas"] + list(metricas['distribucion_imc'].keys())
-            filtro_imc = str.selectbox("Seleccionar Estado Nutricional (OMS):", opciones_imc)
-            
-        # Llamar a la API con los filtros seleccionados
-        datos_pacientes = obtener_pacientes_api(genero=filtro_genero, clasificacion=filtro_imc)
+        df_mostrar = df_pacientes.copy()
+        if filtro_genero != "Todos": df_mostrar = df_mostrar[df_mostrar['genero'] == filtro_genero]
+        if filtro_imc != "Todos": df_mostrar = df_mostrar[df_mostrar['clasificacion_imc'] == filtro_imc]
         
-        if datos_pacientes:
-            df_pacientes = pd.DataFrame(datos_pacientes)
-            
-            # Limpieza estética de las columnas expuestas al usuario operativo
-            columnas_visibles = {
-                'id_paciente': 'ID Paciente',
-                'edad': 'Edad',
-                'genero': 'Género',
-                'peso_kg': 'Peso (kg)',
-                'estatura_cm': 'Estatura (cm)',
-                'imc': 'IMC',
-                'nombre_medico': 'Médico Examinador',
-                'ciudad_clinica': 'Sede Clínica',
-                'clasificacion_imc': 'Diagnóstico OMS'
-            }
-            df_mostrar = df_pacientes[list(columnas_visibles.keys())].rename(columns=columnas_visibles)
-            
-            str.dataframe(df_mostrar, use_container_width=True, hide_index=True)
-            str.caption(f"Mostrando los primeros {len(df_mostrar)} registros que cumplen con el criterio.")
-        else:
-            str.warning("No se encontraron registros de pacientes con los filtros seleccionados.")
+        st.dataframe(df_mostrar[['id_paciente', 'edad', 'genero', 'peso_kg', 'estatura_cm', 'imc', 'clasificacion_imc']], use_container_width=True, hide_index=True)
 
-    # ----------------------------------------------------
-    # 3. VISTA TÉCNICA: Orientada a Ingenieros de Datos o administradores TI
-    # ----------------------------------------------------
-    with tab_tecnica:
-        str.header("Monitoreo de Infraestructura y Datos de la API")
-        str.markdown("Estado técnico de la solución desacoplada y validación de la carga de datos.")
+    # 3. VISTA DE INTELIGENCIA ARTIFICIAL (LA GRAN NOVEDAD DEL EFT)
+    with tab_ia:
+        st.header("Motor de Diagnóstico Predictivo (Random Forest)")
+        st.markdown("Ingrese los signos vitales del nuevo paciente. El algoritmo de Machine Learning predecirá su estado nutricional en tiempo real basándose en patrones históricos.")
         
-        col_t1, col_t2 = str.columns(2)
-        with col_t1:
-            str.subheader("Esquema de Endpoints Activos")
-            str.json({
-                "GET /": "Verificación de estado de la API (Healthcheck)",
-                "GET /api/metricas": "Retorna diccionarios con agregaciones estadísticas precalculadas",
-                "GET /api/pacientes": "Permite consultas parametrizadas con filtros opcionales de negocio"
-            })
-        with col_t2:
-            str.subheader("Métricas de Integración Tecnológica")
-            str.success("Conexión con el Servidor API: ESTABLE (Código 200)")
-            str.info("Estrategia de Carga: Archivos SAS Transport (.XPT) combinados con SQLite e inyección dinámica desde API JSONPlaceholder.")
+        # Formulario de ingreso de datos
+        with st.form("formulario_ml"):
+            c1, c2, c3, c4 = st.columns(4)
+            edad_in = c1.number_input("Edad (años)", min_value=18, max_value=120, value=30)
+            genero_in = c2.selectbox("Género", ["Masculino", "Femenino"])
+            peso_in = c3.number_input("Peso (kg)", min_value=30.0, max_value=250.0, value=75.0)
+            estatura_in = c4.number_input("Estatura (cm)", min_value=100.0, max_value=230.0, value=170.0)
+            
+            submit = st.form_submit_button("🔮 Predecir Estado Nutricional", use_container_width=True)
+            
+        if submit:
+            datos_enviar = {"edad": edad_in, "genero": genero_in, "peso_kg": peso_in, "estatura_cm": estatura_in}
+            
+            with st.spinner("La Inteligencia Artificial está analizando los datos..."):
+                resultado = predecir_estado_api(datos_enviar)
+                
+            if resultado:
+                st.success("Análisis completado exitosamente.")
+                
+                # Mostrar resultado en grande
+                res_col1, res_col2 = st.columns([1, 2])
+                with res_col1:
+                    st.metric("Diagnóstico Sugerido", resultado['prediccion_diagnostico'])
+                    st.metric("Confianza del Modelo", f"{resultado['porcentaje_confianza']}%")
+                
+                with res_col2:
+                    st.markdown("**Desglose de Probabilidades por Clase**")
+                    df_probs = pd.DataFrame(list(resultado['detalle_probabilidades'].items()), columns=['Estado', 'Probabilidad'])
+                    fig_prob = px.bar(df_probs, x='Probabilidad', y='Estado', orientation='h', color='Estado')
+                    fig_prob.update_layout(height=250, showlegend=False, margin=dict(l=0, r=0, t=0, b=0))
+                    st.plotly_chart(fig_prob, use_container_width=True)
+
+    # 4. VISTA TÉCNICA
+    with tab_tecnica:
+        st.header("Monitor de Infraestructura")
+        st.success("Conexión con FastAPI: ESTABLE")
+        st.info("Modelo de ML: Random Forest Classifier (Scikit-Learn) cargado en memoria RAM del servidor.")
